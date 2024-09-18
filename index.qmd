@@ -51,7 +51,10 @@ Take a look at the distribution of the expression levels:
 
 ```{r}
 #| message: false
-(g1 <- )
+
+(g1 <- ggplot(dat, aes(expression)) +
+  geom_histogram())
+
 ## You'll probably notice an automatic message that appears when drawing the histogram: `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
 ## Change the arguments bins or binwidth of geom_histogram() to change the number or width of the bins.
 ```
@@ -60,7 +63,7 @@ The data should be transformed. Transforming on the $\log_{10}$ scale is easy in
 
 ```{r}
 #| warning: false
-g1 + 
+g1 + scale_x_log10()
 ```
 
 but we often use a $log_2$ scale when looking at expression data:
@@ -69,6 +72,11 @@ but we often use a $log_2$ scale when looking at expression data:
 #| warning: false
 ticks_at <- c(0,5,10,15)
 ggplot(dat, aes(l2exp)) +
+  geom_histogram() +
+  scale_x_continuous(breaks = ticks_at,
+                     labels = 2^ticks_at) +
+  labs(x = "Expression",
+       y = "Count")
 
 ```
 
@@ -98,22 +106,41 @@ dat_fc <- dat %>%
            time_4_vs_0 = `4` - `0`) # compare time 4 vs 0
 
 # visualize time_4_vs_0 by time_8_vs_0 
-ggplot(dat_fc, ...) +
+(g2 <- ggplot(dat_fc, aes(time_4_vs_0, time_8_vs_0)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = 'lm', 
+              se = FALSE,
+              color = 'black',
+              linewidth = .5))
 
 ```
 
 We could also add color, but it begins to get a little messy with the large number of categories we have.
 
 ```{r}
+#| message: false
+#| warning: false
 ggplot(dat_fc, aes(time_4_vs_0, time_8_vs_0)) +
-
+  geom_point(aes(color = gene_biotype), alpha = 0.5) +
+  geom_smooth(method = 'lm', 
+              se = FALSE,
+              color = 'black',
+              linewidth = .5) +
+  scale_color_brewer(palette = 'Paired')
+  
+  
 ```
 
 Over-plotting can be an issue with large datasets like this. One solution is using `hexbin:geom_hex()`.
 
 ```{r}
+#| message: false
 ggplot(dat_fc, aes(time_4_vs_0, time_8_vs_0)) +
-
+  geom_hex() +
+  geom_smooth(method = 'lm', 
+              se = FALSE,
+              color = 'black',
+              linewidth = .5)
 ```
 
 ### Box plots
@@ -121,24 +148,36 @@ ggplot(dat_fc, aes(time_4_vs_0, time_8_vs_0)) +
 We can use boxplots to visualize the distribution of gene expressions within each sample:
 
 ```{r}
-ggplot(dat, ) +
-
+ggplot(dat, aes(sample, l2exp)) +
+  geom_boxplot() +
+  labs(x = "Sample",
+       y = "Log2 expression") +
+  theme(axis.text.x = element_text(angle = 90, vjust = .5))
 ```
 
 Adding points to box plots can give us a better understanding of the underlying distributions.
 
 ```{r}
 ggplot(dat, aes(sample, l2exp)) +
-    geom_jitter(alpha = 0.02, width = .15, color = cbbPalette[2]) +
-
+  geom_boxplot() +
+  geom_jitter(alpha = 0.02, width = .15) +
+  labs(x = "Sample",
+       y = "Log2 expression") +
+  theme(axis.text.x = element_text(angle = 90, vjust = .5))
 ```
 
 We could also use `geom_violin` to better see the distribution of points. Try coloring the points by `time` as well.
 
 ```{r}
-ggplot(dat, aes(sample, l2exp)) +
-    geom_jitter(alpha = 0.02, width = .15, aes(color = as.factor(time))) +
-
+dat |>
+ggplot(aes(sample, l2exp)) +
+  geom_violin() +
+  geom_jitter(alpha = 0.02, width = .15, aes(color = as.factor(time))) +
+  labs(x = "Sample",
+       y = "Log2 expression",
+       color = 'time') +
+  theme(axis.text.x = element_text(angle = 90, vjust = .5)) +
+  scale_color_brewer(palette = 'Dark2')
 ```
 
 ### Line plots
@@ -161,9 +200,17 @@ mean_exp_by_time <- dat %>%
     summarize(mean_exp = mean(l2exp)) %>%
     ungroup()
 
-ggplot(mean_exp_by_time, ) +
+ggplot(mean_exp_by_time, aes(time, mean_exp, color = gene)) +
+  geom_line() +
+  scale_color_brewer(palette = 'Paired') +
+  labs(x = "Time",
+       y = "Mean log2 expression")
 
-ggplot(mean_exp_by_time, ) +
+ggplot(mean_exp_by_time, aes(time, mean_exp)) +
+  geom_line() +
+  facet_wrap(~gene) +
+  labs(x = "Time",
+       y = "Mean log2 expression")
 
 ```
 
@@ -181,7 +228,16 @@ mean_exp_by_time_sex <- dat %>%
     summarize(mean_exp = mean(l2exp)) %>%
     ungroup()
 
-ggplot(mean_exp_by_time_sex, ) +
+ggplot(mean_exp_by_time_sex, aes(time, mean_exp, color = sex)) +
+  geom_line() +
+
+  facet_wrap(~gene) +
+
+  scale_color_brewer(palette = 'Dark2') +
+  
+  labs(x = "Time",
+       y = "Mean log2 expression")
+
 
 ```
 
@@ -193,7 +249,11 @@ mean_exp_by_chromosome <- dat %>%
     group_by(chromosome_name, time) %>%
     summarize(mean_exp = mean(l2exp))
 
-ggplot(mean_exp_by_chromosome, ) +
+mean_exp_by_chromosome |>
+  ggplot(aes(time, mean_exp)) +
+  geom_line() +
+  facet_wrap(~chromosome_name,
+             scales = 'free_y')
 
 ```
 
@@ -203,6 +263,14 @@ Let's modify the previous plot to compare how the mean gene expression of males 
 
 ```{r}
 # One column, facet by rows
-ggplot(mean_exp_by_time_sex, ) +
+ggplot(mean_exp_by_time_sex, aes(time, mean_exp, color = gene)) +
+  geom_line() +
+
+  facet_grid(sex~.) +
+
+  scale_color_brewer(palette = 'Paired') +
+  
+  labs(x = "Time",
+       y = "Mean log2 expression")
 
 ```
